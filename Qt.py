@@ -53,6 +53,9 @@ QT_VERBOSE = bool(os.getenv("QT_VERBOSE"))
 QT_PREFERRED_BINDING = os.getenv("QT_PREFERRED_BINDING", "")
 QT_SIP_API_HINT = os.getenv("QT_SIP_API_HINT")
 
+# Include stub files for autocompletion in PyCharm
+sys.path.append(os.path.join(os.path.dirname(__file__), 'stubs', 'Qt'))
+
 # Reference to Qt.py
 Qt = sys.modules[__name__]
 Qt.QtCompat = types.ModuleType("QtCompat")
