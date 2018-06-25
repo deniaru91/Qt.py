@@ -1,0 +1,113 @@
+FROM centos:7.5.1804
+
+RUN yum install -y deltarpm
+RUN yum install -y \
+        centos-release-scl \
+        epel-release
+RUN yum install -y \
+        devtoolset-4-gcc*-5.3.1 \
+        devtoolset-6-gcc*-6.3.1 \
+        devtoolset-6-make* \
+        glibc-*-2.17
+RUN yum install -y \
+        # Git
+        curl-devel expat-devel gettext-devel openssl-devel zlib-devel \
+        perl-ExtUtils-MakeMaker \
+RUN yum install -y \
+        xz wget
+
+
+# Parallel build processes (set to cores +1)
+ENV BUILD_THREADS=5
+
+
+WORKDIR /workdir
+
+# # Activate devtoolset-6 gcc 6.3.1
+# # RUN scl enable devtoolset-6 bash
+# ENV PATH="/opt/rh/devtoolset-6/root/usr/bin:${PATH}"
+# ENV CC=/opt/rh/devtoolset-6/root/usr/bin/gcc
+# ENV CXX=/opt/rh/devtoolset-6/root/usr/bin/g++
+
+
+# Check gcc version
+RUN scl enable devtoolset-6 'gcc --version'
+# Check glibc
+RUN scl enable devtoolset-6 'ldd --version'
+# Check make
+RUN scl enable devtoolset-6 'make --version'
+
+
+# Cmake3
+# https://cmake.org/install/
+# https://cmake.org/files/
+ENV CMAKE_VER=3.11.0
+RUN \
+        wget https://cmake.org/files/v3.11/cmake-${CMAKE_VER}.tar.gz && \
+        tar xzf cmake-${CMAKE_VER}.tar.gz && \
+        cd cmake-${CMAKE_VER} && \
+        scl enable devtoolset-6 './bootstrap' && \
+        scl enable devtoolset-6 'make' && \
+        scl enable devtoolset-6 'make install' && \
+        rm -rf /workdir/*
+# Check cmake version
+RUN cmake --version
+
+
+# Git
+ENV GIT_VER=2.18.0
+RUN \
+    wget https://www.kernel.org/pub/software/scm/git/git-${GIT_VER}.tar.gz && \
+    tar xzf git-${GIT_VER}.tar.gz && \
+    cd git-${GIT_VER} && \
+    ls -alh && \
+    scl enable devtoolset-6 'make -j${BUILD_THREADS} prefix=/usr/local/git all' && \
+    scl enable devtoolset-6 'make prefix=/usr/local/git install' && \
+    rm -rf /workdir/*
+ENV PATH="/usr/local/git/bin:${PATH}"
+
+
+# -------------- not up to date below here...
+
+# Qt 4.8
+# http://doc.qt.io/qt-4.8/requirements-x11.html
+# Commits: http://code.qt.io/cgit/qt/qt.git/log/
+# Commit: http://code.qt.io/cgit/qt/qt.git/commit/?id=0a2f2382541424726168804be2c90b91381608c6
+ENV QT4_VER=4.8
+ENV QT4_GIT_COMMIT=0a2f2382541424726168804be2c90b91381608c6
+RUN \
+        git clone --recursive --jobs ${BUILD_THREADS} --branch ${QT4_VER} https://code.qt.io/qt/qt.git && \
+        cd qt && \
+        git checkout ${QT4_GIT_COMMIT} && \
+        git submodule update --init --recursive
+
+RUN yum install -y make
+
+RUN yum install -y \
+        # Xvfb etc
+        Xvfb \
+        xorg-x11-server-Xvfb \
+        mesa-dri-drivers \
+        libxkbcommon \
+        libxkbcommon-devel \
+        libxkbcommon-x11 \
+        libxkbcommon-x11-devel
+
+RUN yum install -y libXext-devel
+
+RUN cd qt && \
+    ls -alh && \
+        scl enable devtoolset-4 './configure \
+        -opensource \
+        -confirm-license \
+        -nomake examples \
+        -nomake tests'
+
+RUN \
+        cd qt && \
+        scl enable devtoolset-4 'gmake -j${BUILD_THREADS}'
+RUN \
+        cd qt && \
+        scl enable devtoolset-4 'gmake install' && \
+        # Clean up
+        rm -rf /workdir/*
